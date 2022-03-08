@@ -1,17 +1,13 @@
 import csv
+import datetime
+import getpass
 import os
 
 import arcpy
 
-"""
-TO-DO
-add user who ran the script
-add time script was ran
-"""
-
-
-def writeFile():
-    pass
+OS_USER = getpass.getuser()
+USER = "".join([i for i in OS_USER if not i.isdigit()])
+RUN_TIME = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S %p")
 
 
 def spatialExtent(obj):
@@ -33,12 +29,43 @@ def spatialSystem(obj):
     }
 
 
+def dictKeys(obj):
+    """Get all unique keys in a list of dictionaries"""
+    keys = []
+    for dict_obj in obj:
+        for key, value in dict_obj.items():
+            if key not in keys:
+                keys.append(key)
+    return keys
+
+
+def flattenDict(dict_obj):
+    """Transform a nested dictionary into a 'flat'
+    list of dictionaries, equivilant to a list of table rows."""
+    rows = []
+    project_desc = {key: val for (key, val) in dict_obj.items() if type(val) != list}
+    for view in range(len(dict_obj["mapViews"])):
+        map_desc = {
+            key: val
+            for (key, val) in dict_obj["mapViews"][view].items()
+            if type(val) != list
+        }
+        for layer in range(len(dict_obj["mapViews"][view]["layers"])):
+            layer_desc = {
+                key: val
+                for (key, val) in dict_obj["mapViews"][view]["layers"][layer].items()
+            }
+            rows.append({**project_desc, **map_desc, **layer_desc})
+    return rows
+
+
 def describeData(aprx):
+    """Retrieve project, map, and layer attributes for a single APRX file."""
     meta = {
         "homeFolder": aprx.homeFolder,
         "filePath": aprx.filePath,
         "defaultGeodatabase": aprx.defaultGeodatabase,
-        "dateSaved": aprx.dateSaved,
+        "dateSaved": aprx.dateSaved.strftime("%Y-%m-%d %H:%M:%S"),
     }
     mapViews = []
     for m in aprx.listMaps():
@@ -57,6 +84,9 @@ def describeData(aprx):
                 lyr["longName"] = l.longName
             else:
                 lyr["longName"] = None
+            if l.supports("visible"):
+                lyr["visible"] = l.visible
+            lyr["isBroken"] = l.isBroken
             if l.supports("DATASOURCE"):
                 lyr["dataSource"] = l.dataSource
             else:
@@ -66,49 +96,51 @@ def describeData(aprx):
             lyr["isRasterLayer"] = l.isRasterLayer
             lyr["isBasemapLayer"] = l.isBasemapLayer
             lyr["isWebLayer"] = l.isWebLayer
-            lyr["visible"] = l.visible
-            lyr["isBroken"] = l.isBroken
             if l.supports("DEFINITIONQUERY"):
                 lyr["definitionQuery"] = l.definitionQuery
             else:
                 lyr["definitionQuery"] = None
 
-            d = arcpy.Describe(l.name)
-            if hasattr(d, "datasetType"):
-                lyr["datasetType"] = d.datasetType
-            if hasattr(d, "DSID"):
-                lyr["DSID"] = d.DSID
+            try:
+                d = arcpy.Describe(l.name)
+            except:
+                lyrs.append(lyr)
+                continue
+
             if hasattr(d, "catalogPath"):
                 lyr["catalogPath"] = d.catalogPath
             if hasattr(d, "path"):
                 lyr["path"] = d.path
             if hasattr(d, "dataType"):
                 lyr["dataType"] = d.dataType
+            if hasattr(d, "datasetType"):
+                lyr["datasetType"] = d.datasetType
+            if hasattr(d, "DSID"):
+                lyr["DSID"] = d.DSID
             if hasattr(d, "shapeType"):
                 lyr["shapeType"] = d.shapeType
             if hasattr(d, "hasZ"):
                 lyr["hasZ"] = d.hasZ
             try:
-                lyr["fields"] = [
-                    [f.name, f.type, f.length] for f in arcpy.ListFields(l.name)
-                ]
-            except Exception as e:
+                lyr["fields"] = ";".join([f.name for f in arcpy.ListFields(l.name)])
+            except:
                 lyr["fields"] = None
             if hasattr(d, "extent"):
-                lyr.update(
-                    {
-                        "layer" + key: value
-                        for key, value in spatialExtent(d.extent).items()
-                    }
-                )
+                if d.extent:
+                    lyr.update(
+                        {
+                            "layer" + key: value
+                            for key, value in spatialExtent(d.extent).items()
+                        }
+                    )
             if hasattr(d, "spatialReference"):
-                lyr.update(
-                    {
-                        "layer" + key: value
-                        for key, value in spatialSystem(d.spatialReference).items()
-                    }
-                )
-
+                if d.spatialReference:
+                    lyr.update(
+                        {
+                            "layer" + key: value
+                            for key, value in spatialSystem(d.spatialReference).items()
+                        }
+                    )
             if l.isRasterLayer:
                 r = arcpy.Raster(l.name)
                 if hasattr(r, "bandCound"):
@@ -151,21 +183,61 @@ def describeData(aprx):
             lyrs.append(lyr)
         v["layers"] = lyrs
         mapViews.append(v)
-    meta.update({"mapViews": v})
-    # Currently overwriting map descriptions with each iteration
+    meta.update({"mapViews": mapViews})
     return meta
 
 
-def main(aprx):
+def writeFile(outDir, rows, cols, aprxPath):
+    """Export data to CSV file."""
+    # Append script runtime columns
+    cols.extend(["Script_User", "Script_Run_Time"])
+    for row in rows:
+        row.update({"Script_User": USER, "Script_Run_Time": RUN_TIME})
+
+    aprxName = os.path.splitext(os.path.basename(aprxPath))[0]
+    if outDir is None or outDir == "":
+        oPath = "H:\{}.csv".format(aprxName)
+    else:
+        oPath = os.path.join(outDir, aprxName + ".csv")
+    if os.path.exists(oPath):
+        try:
+            os.remove(oPath)
+        except Exception as e:
+            arcpy.AddError(e)
+    try:
+        with open(oPath, "w", newline="") as f:
+            writer = csv.writer(
+                f, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
+            )
+            writer.writerow(cols)
+            for row in rows:
+                r = []
+                for col in cols:
+                    if col in row:
+                        r.append(str(row[col]))
+                    else:
+                        r.append(None)
+                writer.writerow(r)
+    except Exception as e:
+        arcpy.AddError(e)
+    return oPath
+
+
+def main(aprx, oFile):
     meta = describeData(aprx)
+    rows = flattenDict(meta)
+    cols = dictKeys(rows)
+    aprxPath = aprx.filePath
+    oPath = writeFile(oFile, rows, cols, aprxPath)
+    arcpy.AddMessage("Completed: {}".format(oPath))
 
 
 if __name__ == "__main__":
-    inFile = arcpy.GetParameterAsText(0)
-    outFile = arcpy.GetParameterAsText(1)
+    outDir = arcpy.GetParameterAsText(0)
     try:
         aprx = arcpy.mp.ArcGISProject("CURRENT")
     except Exception as e:
+        print(e)
         arcpy.AddError(e)
-    arcpy.AddMessage(f"Compiling metadata for {aprx.name}")
-    main(aprx)
+    arcpy.AddMessage("Compiling metadata.")
+    main(aprx, outDir)

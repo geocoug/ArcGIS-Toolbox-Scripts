@@ -1,3 +1,17 @@
+# PURPOSE
+#    Scan APRX for map and layer metadata and place output in CSV.
+#
+# AUTHOR(S)
+#   Caleb Grant (CG)
+#
+# NOTES
+#   1) This script accepts 1 optional argument:
+#       - Output CSV directory
+#
+# HISTORY
+#   1) Created 2022-04-15. CG.
+# =========================================================================
+
 import csv
 import datetime
 import getpass
@@ -77,7 +91,7 @@ def describeData(aprx):
     }
     mapViews = []
     for m in aprx.listMaps():
-        arcpy.AddMessage("Compiling metadata for map: {m.name}")
+        arcpy.AddMessage(f"Compiling metadata for map: {m.name}")
         v = {}
         v["mapName"] = m.name
         v.update(spatialExtent(m.defaultCamera.getExtent()))
@@ -177,7 +191,7 @@ def writeFile(outDir, rows, cols, aprxPath):
 
     aprxName = os.path.splitext(os.path.basename(aprxPath))[0]
     if outDir is None or outDir == "":
-        oPath = os.path.join(os.getcwd(), f"{aprxName}.csv")
+        oPath = os.path.join(os.path.dirname(aprxPath), f"{aprxName}.csv")
     else:
         oPath = os.path.join(outDir, f"{aprxName}.csv")
     if os.path.exists(oPath):

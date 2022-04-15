@@ -1,45 +1,6 @@
 # PURPOSE
 #   Scan MXD for layer descriptions and place output in CSV.
 #
-# OUTPUT
-#   CSV with the following columns:
-##    Data_Frame
-##    Layer_Basename
-##    Layer_Type
-##    File_Extension
-##    Layer_Catalog_Path
-##    Layer_DefinitionQuery_Supported
-##    Layer_DefinitionQuery
-##    Field_Names
-##    Feature_Type
-##    Shape_Type
-##    Has_Z'
-##    Has_Spatial_Index
-##    Layer_File
-##    Layer_Path
-##    Coordinate_Type
-##    GCS_Name
-##    GCS_Code
-##    PCS_Name
-##    PCS_Code
-##    Linear_Unit_Name
-##    Linear_Unit_Code
-##    Datum_Name
-##    Datum_Code
-##    Spheroid_Name
-##    Spheroid_Code
-##    Layer_Description
-##    Raster_Format
-##    Raster_Band_Count
-##    Raster_Compression_Type
-##    Raster_Size_MB
-##    Raster_Cell_Width
-##    Raster_Cell_Height
-##    Raster_Cell_Min
-##    Raster_Cell_Max
-##    Raster_Cell_Mean
-##    Raster_Extent_JSON
-#
 # AUTHOR(S)
 #   Caleb Grant (CG)
 #
@@ -66,7 +27,6 @@ import datetime
 import getpass
 import os
 import sys
-import time
 
 from colorama import Fore, Style, init
 

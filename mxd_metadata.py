@@ -22,9 +22,14 @@ import datetime
 import getpass
 import os
 import sys
-import time
 
-import arcpy
+# Check if ArcGIS License can be utilized for ArcPy
+# This shouldnt be an issue since the user will already have ArcMap open
+try:
+    import arcpy
+except RuntimeError as e:
+    print("RuntimeError:", e)
+    sys.exit()
 
 OS_USER = getpass.getuser()
 USER = "".join([i for i in OS_USER if not i.isdigit()])
@@ -35,7 +40,7 @@ def mainFunction(mxd):
     def lyrDescriptions(l):
         try:
             desc = arcpy.Describe(l)
-        except:
+        except Exception:
             try:
                 meta.update(
                     {
@@ -79,7 +84,7 @@ def mainFunction(mxd):
                         }
                     }
                 )
-            except:
+            except Exception:
                 return
             return
 
@@ -120,7 +125,7 @@ def mainFunction(mxd):
 
         try:
             lyr_name = l.longName
-        except:
+        except Exception:
             lyr_name = desc.nameString
 
         if hasattr(desc, "file"):
@@ -172,7 +177,7 @@ def mainFunction(mxd):
 
         try:
             lyr_coordType = desc.spatialReference.type
-        except:
+        except Exception:
             lyr_coordType = ""
 
         try:
@@ -181,7 +186,7 @@ def mainFunction(mxd):
                 lyr_GCSCode = ""
             else:
                 lyr_GCSCode = desc.spatialReference.GCSCode
-        except:
+        except Exception:
             lyr_GCSName = ""
             lyr_GCSCode = ""
 
@@ -191,7 +196,7 @@ def mainFunction(mxd):
                 lyr_PCSCode = ""
             else:
                 lyr_PCSCode = desc.spatialReference.PCSCode
-        except:
+        except Exception:
             lyr_PCSName = ""
             lyr_PCSCode = ""
 
@@ -201,7 +206,7 @@ def mainFunction(mxd):
                 lyr_datumCode = ""
             else:
                 lyr_datumCode = desc.spatialReference.datumCode
-        except:
+        except Exception:
             lyr_datumName = ""
             lyr_datumCode = ""
 
@@ -211,7 +216,7 @@ def mainFunction(mxd):
                 lyr_spheroidCode = ""
             else:
                 lyr_spheroidCode = desc.spatialReference.spheroidCode
-        except:
+        except Exception:
             lyr_spheroidName = ""
             lyr_spheroidCode = ""
 
@@ -221,7 +226,7 @@ def mainFunction(mxd):
                 lyr_coord_unit_code = ""
             else:
                 lyr_coord_unit_code = desc.spatialReference.linearUnitCode
-        except:
+        except Exception:
             lyr_coord_unit = ""
             lyr_coord_unit_code = ""
 
@@ -229,54 +234,54 @@ def mainFunction(mxd):
             raster = arcpy.Raster(lyr_catpath)
             try:
                 raster_format = raster.format
-            except:
+            except Exception:
                 raster_format = ""
 
             try:
                 raster_bands = raster.bandCount
-            except:
+            except Exception:
                 raster_bannds = ""
 
             try:
                 raster_compression = raster.compressionType
-            except:
+            except Exception:
                 raster_compression = ""
 
             try:
                 raster_size = (
                     float(raster.uncompressedSize) / 1000000
                 )  # Byte --> Megabyte
-            except:
+            except Exception:
                 raster_size = ""
 
             try:
                 raster_cell_width = raster.meanCellWidth
-            except:
+            except Exception:
                 raster_cell_width = ""
 
             try:
                 raster_cell_height = raster.meanCellHeight
-            except:
+            except Exception:
                 raster_cell_height = ""
 
             try:
                 raster_cell_min = raster.minimum
-            except:
+            except Exception:
                 raster_cell_min = ""
 
             try:
                 raster_cell_max = raster.maximum
-            except:
+            except Exception:
                 raster_cell_max = ""
 
             try:
                 raster_cell_mean = raster.mean
-            except:
+            except Exception:
                 raster_cell_mean = ""
 
             try:
                 raster_extent = raster.extent.JSON
-            except:
+            except Exception:
                 raster_extent = ""
         else:
             raster_format = ""
@@ -384,7 +389,7 @@ def mainFunction(mxd):
                                                                                             lyrDescriptions(
                                                                                                 g6lyr
                                                                                             )
-                                                                                        except:
+                                                                                        except Exception:
                                                                                             arcpy.AddWarning(
                                                                                                 "> 6 nested groups present. Skipping those."
                                                                                             )
@@ -426,7 +431,7 @@ def write_output(mxdName, mxdMeta, csvPath):
     if os.path.exists(fPath):
         try:
             os.remove(fPath)
-        except:
+        except Exception:
             sys.exit()
 
     headers = [
@@ -488,7 +493,7 @@ def write_output(mxdName, mxdMeta, csvPath):
                     else:
                         row.append(mxdMeta[lyr][header])
                 f_writer.writerow(row)
-    except:
+    except Exception:
         arcpy.AddError("Error writing to CSV")
         sys.exit()
     return fPath

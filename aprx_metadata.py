@@ -5,7 +5,13 @@ import os
 import re
 import sys
 
-import arcpy
+# Check if ArcGIS License can be utilized for ArcPy
+# This shouldnt be an issue since the user will already have ArcMap open
+try:
+    import arcpy
+except RuntimeError as e:
+    print("RuntimeError:", e)
+    sys.exit()
 
 OS_USER = getpass.getuser()
 USER = "".join([i for i in OS_USER if not i.isdigit()])

@@ -2,6 +2,8 @@ import csv
 import datetime
 import getpass
 import os
+import re
+import sys
 
 import arcpy
 
@@ -69,6 +71,7 @@ def describeData(aprx):
     }
     mapViews = []
     for m in aprx.listMaps():
+        arcpy.AddMessage("Compiling metadata for map: {m.name}")
         v = {}
         v["mapName"] = m.name
         v.update(spatialExtent(m.defaultCamera.getExtent()))
@@ -77,54 +80,35 @@ def describeData(aprx):
         for l in m.listLayers():
             lyr = {}
             if l.supports("NAME"):
+                if l.supports("LONGNAME"):
+                    if re.search(r"World_Imagery\\", l.longName):
+                        continue
                 lyr["layerName"] = l.name
             else:
-                lyr["layerName"] = None
+                continue
             if l.supports("LONGNAME"):
                 lyr["longName"] = l.longName
-            else:
-                lyr["longName"] = None
             if l.supports("visible"):
                 lyr["visible"] = l.visible
             lyr["isBroken"] = l.isBroken
             if l.supports("DATASOURCE"):
                 lyr["dataSource"] = l.dataSource
-            else:
-                lyr["dataSource"] = None
             lyr["isGroupLayer"] = l.isGroupLayer
             lyr["isFeatureLayer"] = l.isFeatureLayer
             lyr["isRasterLayer"] = l.isRasterLayer
             lyr["isBasemapLayer"] = l.isBasemapLayer
             lyr["isWebLayer"] = l.isWebLayer
-            if l.supports("DEFINITIONQUERY"):
-                lyr["definitionQuery"] = l.definitionQuery
-            else:
-                lyr["definitionQuery"] = None
-
             try:
                 d = arcpy.Describe(l.name)
-            except:
+            except Exception:
                 lyrs.append(lyr)
                 continue
-
-            if hasattr(d, "catalogPath"):
-                lyr["catalogPath"] = d.catalogPath
-            if hasattr(d, "path"):
-                lyr["path"] = d.path
             if hasattr(d, "dataType"):
                 lyr["dataType"] = d.dataType
             if hasattr(d, "datasetType"):
                 lyr["datasetType"] = d.datasetType
-            if hasattr(d, "DSID"):
-                lyr["DSID"] = d.DSID
-            if hasattr(d, "shapeType"):
-                lyr["shapeType"] = d.shapeType
             if hasattr(d, "hasZ"):
                 lyr["hasZ"] = d.hasZ
-            try:
-                lyr["fields"] = ";".join([f.name for f in arcpy.ListFields(l.name)])
-            except:
-                lyr["fields"] = None
             if hasattr(d, "extent"):
                 if d.extent:
                     lyr.update(
@@ -141,45 +125,36 @@ def describeData(aprx):
                             for key, value in spatialSystem(d.spatialReference).items()
                         }
                     )
+            if l.supports("DEFINITIONQUERY"):
+                lyr["definitionQuery"] = l.definitionQuery
+            if l.supports("DATASOURCE"):
+                try:
+                    if l.supports("DATASOURCE"):
+                        lyr["fields"] = ";".join(
+                            [f.name for f in arcpy.ListFields(l.dataSource)]
+                        )
+                except Exception:
+                    pass
             if l.isRasterLayer:
                 r = arcpy.Raster(l.name)
                 if hasattr(r, "bandCound"):
                     lyr["bandCount"] = r.bandCount
-                else:
-                    lyr["bandCound"] = None
                 if hasattr(r, "format"):
                     lyr["format"] = r.format
-                else:
-                    lyr["format"] = None
                 if hasattr(r, "compressionType"):
                     lyr["compressionType"] = r.compressionType
-                else:
-                    lyr["compressionType"] = None
                 if hasattr(r, "bandNames"):
                     lyr["bandNames"] = r.bandNames
-                else:
-                    lyr["bandNames"] = None
                 if hasattr(r, "height"):
                     lyr["height"] = r.height
-                else:
-                    lyr["height"] = None
                 if hasattr(r, "width"):
                     lyr["width"] = r.width
-                else:
-                    lyr["width"] = None
                 if hasattr(r, "minimum"):
                     lyr["minimum"] = r.minimum
-                else:
-                    lyr["minimum"] = None
                 if hasattr(r, "maximum"):
                     lyr["maximum"] = r.maximum
-                else:
-                    lyr["maximum"] = None
                 if hasattr(r, "mean"):
                     lyr["mean"] = r.maximum
-                else:
-                    lyr["mean"] = None
-
             lyrs.append(lyr)
         v["layers"] = lyrs
         mapViews.append(v)
@@ -196,9 +171,9 @@ def writeFile(outDir, rows, cols, aprxPath):
 
     aprxName = os.path.splitext(os.path.basename(aprxPath))[0]
     if outDir is None or outDir == "":
-        oPath = "H:\{}.csv".format(aprxName)
+        oPath = os.path.join(os.getcwd(), f"{aprxName}.csv")
     else:
-        oPath = os.path.join(outDir, aprxName + ".csv")
+        oPath = os.path.join(outDir, f"{aprxName}.csv")
     if os.path.exists(oPath):
         try:
             os.remove(oPath)
@@ -223,12 +198,13 @@ def writeFile(outDir, rows, cols, aprxPath):
     return oPath
 
 
-def main(aprx, oFile):
+def main(aprx, outDir):
+    """Main function"""
     meta = describeData(aprx)
     rows = flattenDict(meta)
     cols = dictKeys(rows)
     aprxPath = aprx.filePath
-    oPath = writeFile(oFile, rows, cols, aprxPath)
+    oPath = writeFile(outDir, rows, cols, aprxPath)
     arcpy.AddMessage("Completed: {}".format(oPath))
 
 
@@ -237,7 +213,6 @@ if __name__ == "__main__":
     try:
         aprx = arcpy.mp.ArcGISProject("CURRENT")
     except Exception as e:
-        print(e)
         arcpy.AddError(e)
-    arcpy.AddMessage("Compiling metadata.")
+        sys.exit()
     main(aprx, outDir)

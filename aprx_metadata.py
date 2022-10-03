@@ -38,7 +38,7 @@ except RuntimeError as e:
 
 OS_USER = getpass.getuser()
 USER = "".join([i for i in OS_USER if not i.isdigit()])
-RUN_TIME = datetime.datetime.now().isoformat()
+RUN_TIME = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S %p")
 
 
 def spatialExtent(obj: dict) -> dict:
